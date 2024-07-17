@@ -1,62 +1,18 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <SDL2/SDL.h>
+#include "display.h"
+#include "vector.h"
 
-SDL_Window *window = NULL;
-SDL_Renderer *renderer = NULL;
-SDL_Texture *color_buffer_texture = NULL;
 
-int WINDOW_WIDTH = 800;
-int WINDOW_HEIGHT = 600;
+const int N_POINTS = 9 * 9 * 9;
+vec3_t cube_points[N_POINTS];
+vec2_t projected_points[N_POINTS];
+
+vec3_t camera_position = {.x = 0, .y = 0, .z = 2};
+
 bool is_running = false;
-
-uint32_t *color_buffer = NULL;
-
-bool initialize_window(void)
-{
-    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
-    {
-        fprintf(stderr, "Error initializing SDL.\n");
-        return false;
-    }
-
-    // Use SDL to retrieve the max w/h of the display
-    SDL_DisplayMode display_mode;
-    SDL_GetCurrentDisplayMode(0, &display_mode);
-    WINDOW_WIDTH = display_mode.w;
-    WINDOW_HEIGHT = display_mode.h;
-
-    // Create a SDL Window
-    window = SDL_CreateWindow(
-        "HelloWindow",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        SDL_WINDOW_BORDERLESS);
-
-    if (!window)
-    {
-        fprintf(stderr, "Error creating SDL Window.\n");
-        return false;
-    }
-
-    // TODO: Create a SDL Renderer
-    renderer = SDL_CreateRenderer(
-        window,
-        -1, 0);
-
-    if (!renderer)
-    {
-        fprintf(stderr, "Error creating SDL Renderer.\n");
-        return false;
-    }
-
-    SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
-
-    return true;
-}
 
 void setup(void)
 {
@@ -67,6 +23,15 @@ void setup(void)
         SDL_TEXTUREACCESS_STREAMING,
         WINDOW_WIDTH,
         WINDOW_HEIGHT);
+
+    int point_count = 0;
+    for (float x = -1; x <= 1; x += 0.25) {
+        for (float y = -1; y <= 1; y += 0.25) {
+            for (float z = -1; z <= 1; z += 0.25) {
+                cube_points[point_count++] = (vec3_t) { .x = x, .y = y, .z = z};
+            }
+        }
+    }
 };
 
 void process_input(void)
@@ -86,71 +51,48 @@ void process_input(void)
     }
 };
 
+vec2_t project(vec3_t p) {
+    vec2_t projected_p = {
+        .x = fov * p.x / p.z,
+        .y = fov * p.y / p.z
+    };
+    return projected_p;
+}
+
+float rotation_angle = 0;
 void update(void) {
-    // TODO
+    rotation_angle += 0.001;
+
+    for (int i=0; i < N_POINTS; i++) {
+        vec3_t p = cube_points[i];
+        vec3_t transformed_p = vec3_rotate_y(p, rotation_angle);
+        transformed_p = vec3_rotate_x(transformed_p, rotation_angle);
+        transformed_p = vec3_rotate_z(transformed_p, rotation_angle);
+        // Offset point z-component according to the camera position
+        transformed_p.z -= camera_position.z;
+
+
+        projected_points[i] = project(transformed_p);
+    }
 };
-
-void destroy_window(void)
-{
-    free(color_buffer);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-}
-
-void clear_color_buffer(uint32_t color)
-{
-    for (int y = 0; y < WINDOW_HEIGHT; y++)
-    {
-        for (int x = 0; x < WINDOW_WIDTH; x++)
-        {
-            color_buffer[WINDOW_WIDTH * y + x] = color;
-        }
-    }
-}
-
-void render_color_buffer(void)
-{
-    SDL_UpdateTexture(
-        color_buffer_texture,
-        NULL,
-        color_buffer,
-        (int)WINDOW_WIDTH * sizeof(uint32_t));
-    SDL_RenderCopy(renderer, color_buffer_texture, NULL, NULL);
-}
-
-void draw_grid(int n)
-{
-    for (int y=0; y < WINDOW_HEIGHT; y++)
-    {
-        for (int x=0; x < WINDOW_WIDTH; x++)
-        {
-            if (y % n == 0 || x % n == 0 )
-            color_buffer[WINDOW_WIDTH * y + x] = 0XFFFF0000;
-        }
-    }
-}
-
-void draw_rect(int originX, int originY, int w, int h, uint32_t color) {
-    for (int y= originY; y < originY + h; y++)
-    {
-        for (int x=originX; x < originX + w; x++)
-        {
-            color_buffer[WINDOW_WIDTH * y + x] = color;
-        }
-    }
-}
 
 int i = 0;
 void render(void)
 {
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    // SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    // draw_grid(10);
-    draw_rect(100, 100, 800, 400, 0XFF00FF00);
+    for (int i=0; i < N_POINTS; i++) {
+        vec2_t projected_point = projected_points[i];
+        draw_rect(
+            projected_point.x + WINDOW_WIDTH / 2,
+            projected_point.y + WINDOW_HEIGHT / 2,
+            4, 4,
+            0x00FF00);
+    }
+
     render_color_buffer();
-    clear_color_buffer(0XFFFFFF00);
+    clear_color_buffer(0X000000);
 
     SDL_RenderPresent(renderer);
 };
