@@ -6,9 +6,9 @@
 #include "vector.h"
 #include "mesh.h"
 #include "triangle.h"
+#include "array.h"
 
-
-triangle_t triangles_to_render[N_MESH_FACES];
+triangle_t triangles_to_render[N_CUBE_FACES];
 vec3_t camera_position = {.x = 0, .y = 0, .z = -2};
 Uint32 previous_frame_time = 0;
 
@@ -23,6 +23,8 @@ void setup(void)
         SDL_TEXTUREACCESS_STREAMING,
         WINDOW_WIDTH,
         WINDOW_HEIGHT);
+
+    load_cube_mesh_data();
 };
 
 void process_input(void)
@@ -62,15 +64,17 @@ void update(void) {
     }
     previous_frame_time = SDL_GetTicks();
 
-    rotation_angle += 0.02;
 
+    int num_faces = array_length(mesh.faces);
+    vec3_t* vertices = mesh.vertices;
+    rotation_angle += 0.02;
     // Loop over all the mesh faces
-    for (int i=0; i < N_MESH_FACES; i++) {
-        face_t mesh_face = mesh_faces[i];
+    for (int i=0; i < num_faces; i++) {
+        face_t mesh_face = cube_faces[i];
         vec3_t face_vertices[3];
-        face_vertices[0] = mesh_vertices[mesh_face.a - 1];
-        face_vertices[1] = mesh_vertices[mesh_face.b - 1];
-        face_vertices[2] = mesh_vertices[mesh_face.c - 1];
+        face_vertices[0] = vertices[mesh_face.a - 1];
+        face_vertices[1] = vertices[mesh_face.b - 1];
+        face_vertices[2] = vertices[mesh_face.c - 1];
 
         triangle_t projected_triangle;
         // Apply transformations to vertices
@@ -98,7 +102,7 @@ void render(void)
     // SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     // SDL_RenderClear(renderer);
     // Loop over all projected triangles and render them
-    for (int i=0; i < N_MESH_FACES; i++) {
+    for (int i=0; i < N_CUBE_FACES; i++) {
         triangle_t triangle = triangles_to_render[i];
         for (int j=0; j<3; j++) {
             draw_rect(
@@ -118,6 +122,11 @@ void render(void)
     SDL_RenderPresent(renderer);
 };
 
+void free_resources(void) {
+    array_free(mesh.faces);
+    array_free(mesh.vertices);
+    destroy_window();
+}
 int main(int argc, char **argv)
 {
     is_running = initialize_window();
@@ -131,6 +140,7 @@ int main(int argc, char **argv)
         render();
     }
 
-    destroy_window();
+    free_resources();
     return 0;
 };
+
