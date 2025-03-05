@@ -4,13 +4,13 @@
 #include <SDL2/SDL.h>
 #include "display.h"
 #include "vector.h"
+#include "mesh.h"
+#include "triangle.h"
 
 
-const int N_POINTS = 9 * 9 * 9;
-vec3_t cube_points[N_POINTS];
-vec2_t projected_points[N_POINTS];
-
-vec3_t camera_position = {.x = 0, .y = 0, .z = 2};
+triangle_t triangles_to_render[N_MESH_FACES];
+vec3_t camera_position = {.x = 0, .y = 0, .z = -5};
+Uint32 previous_frame_time = 0;
 
 bool is_running = false;
 
@@ -23,15 +23,6 @@ void setup(void)
         SDL_TEXTUREACCESS_STREAMING,
         WINDOW_WIDTH,
         WINDOW_HEIGHT);
-
-    int point_count = 0;
-    for (float x = -1; x <= 1; x += 0.25) {
-        for (float y = -1; y <= 1; y += 0.25) {
-            for (float z = -1; z <= 1; z += 0.25) {
-                cube_points[point_count++] = (vec3_t) { .x = x, .y = y, .z = z};
-            }
-        }
-    }
 };
 
 void process_input(void)
@@ -60,19 +51,45 @@ vec2_t project(vec3_t p) {
 }
 
 float rotation_angle = 0;
+
 void update(void) {
-    rotation_angle += 0.001;
+    // Naive limiter, keeps CPU busy.
+    // while(!SDL_TICKS_PASSED(SDL_GetTicks(), previous_frame_time + FRAME_TARGET_TIME));
+    // Better release process and resume in `time_to_wait` ms
+    const Uint32 time_to_wait = FRAME_TARGET_TIME - (SDL_GetTicks() - previous_frame_time);
+    if (time_to_wait > 0 && time_to_wait <= FRAME_TARGET_TIME) {
+        SDL_Delay(time_to_wait);
+    }
+    previous_frame_time = SDL_GetTicks();
 
-    for (int i=0; i < N_POINTS; i++) {
-        vec3_t p = cube_points[i];
-        vec3_t transformed_p = vec3_rotate_y(p, rotation_angle);
-        transformed_p = vec3_rotate_x(transformed_p, rotation_angle);
-        transformed_p = vec3_rotate_z(transformed_p, rotation_angle);
-        // Offset point z-component according to the camera position
-        transformed_p.z -= camera_position.z;
+    rotation_angle += 0.01;
 
+    // Loop over all the mesh faces
+    for (int i=0; i < N_MESH_FACES; i++) {
+        face_t mesh_face = mesh_faces[i];
+        vec3_t face_vertices[3];
+        face_vertices[0] = mesh_vertices[mesh_face.a - 1];
+        face_vertices[1] = mesh_vertices[mesh_face.b - 1];
+        face_vertices[2] = mesh_vertices[mesh_face.c - 1];
 
-        projected_points[i] = project(transformed_p);
+        // Apply transformations to vertices
+        for (int j = 0; j < 3; j ++) {
+            vec3_t transformed_vertex = face_vertices[j];
+            transformed_vertex = vec3_rotate_y(transformed_vertex, rotation_angle);
+            transformed_vertex = vec3_rotate_x(transformed_vertex, rotation_angle);
+            transformed_vertex = vec3_rotate_z(transformed_vertex, rotation_angle);
+            // Offset point z-component according to the camera position
+            transformed_vertex.z -= camera_position.z;
+
+            vec2_t projected_point;
+
+            projected_point = project(transformed_vertex);
+            projected_point.x += projected_point.x + WINDOW_WIDTH / 2;
+            projected_point.y += projected_point.y + WINDOW_HEIGHT / 2;
+
+            triangles_to_render[i].points[j] = projected_point;
+
+        }
     }
 };
 
@@ -82,14 +99,20 @@ void render(void)
     // SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
 
-    for (int i=0; i < N_POINTS; i++) {
-        vec2_t projected_point = projected_points[i];
-        draw_rect(
-            projected_point.x + WINDOW_WIDTH / 2,
-            projected_point.y + WINDOW_HEIGHT / 2,
-            4, 4,
-            0x00FF00);
+    // Loop over all projected triangles and render them
+    for (int i=0; i < N_MESH_FACES; i++) {
+        triangle_t triangle = triangles_to_render[i];
+        for (int j=0; j < 3; j++) {
+            draw_rect(
+                triangle.points[j].x,
+                triangle.points[j].y,
+                4, 4,
+                0x00FF00
+            );
+
+        }
     }
+
 
     render_color_buffer();
     clear_color_buffer(0X000000);
