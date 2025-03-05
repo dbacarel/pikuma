@@ -9,7 +9,7 @@
 
 
 triangle_t triangles_to_render[N_MESH_FACES];
-vec3_t camera_position = {.x = 0, .y = 0, .z = -5};
+vec3_t camera_position = {.x = 0, .y = 0, .z = -2};
 Uint32 previous_frame_time = 0;
 
 bool is_running = false;
@@ -62,7 +62,7 @@ void update(void) {
     }
     previous_frame_time = SDL_GetTicks();
 
-    rotation_angle += 0.01;
+    rotation_angle += 0.02;
 
     // Loop over all the mesh faces
     for (int i=0; i < N_MESH_FACES; i++) {
@@ -72,6 +72,7 @@ void update(void) {
         face_vertices[1] = mesh_vertices[mesh_face.b - 1];
         face_vertices[2] = mesh_vertices[mesh_face.c - 1];
 
+        triangle_t projected_triangle;
         // Apply transformations to vertices
         for (int j = 0; j < 3; j ++) {
             vec3_t transformed_vertex = face_vertices[j];
@@ -81,13 +82,11 @@ void update(void) {
             // Offset point z-component according to the camera position
             transformed_vertex.z -= camera_position.z;
 
-            vec2_t projected_point;
-
-            projected_point = project(transformed_vertex);
+            vec2_t projected_point = project(transformed_vertex);
             projected_point.x += projected_point.x + WINDOW_WIDTH / 2;
             projected_point.y += projected_point.y + WINDOW_HEIGHT / 2;
-
-            triangles_to_render[i].points[j] = projected_point;
+            projected_triangle.points[j] = projected_point;
+            triangles_to_render[i] = projected_triangle;
 
         }
     }
@@ -97,20 +96,19 @@ int i = 0;
 void render(void)
 {
     // SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);
-
+    // SDL_RenderClear(renderer);
     // Loop over all projected triangles and render them
     for (int i=0; i < N_MESH_FACES; i++) {
         triangle_t triangle = triangles_to_render[i];
-        for (int j=0; j < 3; j++) {
+        for (int j=0; j<3; j++) {
             draw_rect(
                 triangle.points[j].x,
                 triangle.points[j].y,
-                4, 4,
-                0x00FF00
+                8, 8,
+                0xFFFF00
             );
-
         }
+        draw_triangle(triangle, 0x00FF00);
     }
 
 
